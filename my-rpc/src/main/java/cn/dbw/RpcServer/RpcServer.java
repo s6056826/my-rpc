@@ -2,6 +2,9 @@ package cn.dbw.RpcServer;
 
 import java.net.Socket;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 
 import org.jboss.netty.util.internal.ConcurrentHashMap;
 import org.springframework.beans.BeansException;
@@ -9,6 +12,10 @@ import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 
+import cn.dbw.RpcServer.handler.RpcDecoder;
+import cn.dbw.RpcServer.handler.RpcEncoder;
+import cn.dbw.RpcServer.rpcpo.RpcRequst;
+import cn.dbw.RpcServer.rpcpo.RpcResponse;
 import cn.dbw.netty.annotation.RpcService;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
@@ -19,6 +26,7 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.util.concurrent.DefaultThreadFactory;
 /**
  * 实现ApplicationContextAware接口的bean可以获取spring的ioc容器
  * 实现InitializingBean接口可以在bean属性化之后调用afterPropertiesSet()方法
@@ -29,6 +37,7 @@ public class RpcServer implements ApplicationContextAware,InitializingBean {
 	
 
 	private Map<String,Object> handlerMap=new ConcurrentHashMap<String, Object>(32);
+	private final ExecutorService executorService=Executors.newSingleThreadExecutor(new DefaultThreadFactory("my-pool"));
 	private final ZkServiceRegister registry;
 	private final String registerAddress;
 	public RpcServer(ZkServiceRegister registor,String registerAddress){
@@ -53,7 +62,11 @@ public class RpcServer implements ApplicationContextAware,InitializingBean {
 //	}
 
 	public void afterPropertiesSet() throws Exception {
-		
+		executorService.submit(()->{
+			startServer();
+		});
+		System.out.println("启动服务器成功.......监听端口：9999");
+	
 		
 	}
     
@@ -78,11 +91,22 @@ public class RpcServer implements ApplicationContextAware,InitializingBean {
 						@Override
 						protected void initChannel(SocketChannel ch)
 								throws Exception {
-					            
+					            ChannelPipeline pipeline = ch.pipeline();
+					            pipeline.addLast(new RpcDecoder(RpcRequst.class));
+					            pipeline.addLast(new RpcEncoder(RpcResponse.class));
 						}
 					});
+			 ChannelFuture channelFuture = bootstrap.bind(9999).sync();
+			 if(registry!=null){
+				 registry.register(registerAddress);// 注册服务地址
+			 }
+			 channelFuture.channel().closeFuture().sync();
 		} catch (Exception e) {
 			e.printStackTrace();
+		}finally{
+			//优雅的关闭两个事件循环组
+			boss.shutdownGracefully();
+            worker.shutdownGracefully();
 		}
 	}
 
