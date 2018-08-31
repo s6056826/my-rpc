@@ -16,8 +16,15 @@ public class ZkServiceRegister {
 	
 	private final CountDownLatch countDownLatch=new CountDownLatch(1);
 	
+	private String registryAddress="";
+	
+	public ZkServiceRegister(String registryAddress) {
+		this.registryAddress=registryAddress;
+	}
+	
+	
 	public ZooKeeper connectServer(){
-		ZooKeeper zooKeeper = connectServer("localhost:2181",5000);
+		ZooKeeper zooKeeper = connectServer(registryAddress,5000);
 		return zooKeeper;
 	}
 	

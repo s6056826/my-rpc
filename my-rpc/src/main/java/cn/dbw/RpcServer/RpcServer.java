@@ -14,6 +14,7 @@ import org.springframework.context.ApplicationContextAware;
 
 import cn.dbw.RpcServer.handler.RpcDecoder;
 import cn.dbw.RpcServer.handler.RpcEncoder;
+import cn.dbw.RpcServer.handler.RpcServerHandler;
 import cn.dbw.RpcServer.rpcpo.RpcRequst;
 import cn.dbw.RpcServer.rpcpo.RpcResponse;
 import cn.dbw.netty.annotation.RpcService;
@@ -65,11 +66,27 @@ public class RpcServer implements ApplicationContextAware,InitializingBean {
 		executorService.submit(()->{
 			startServer();
 		});
-		System.out.println("启动服务器成功.......监听端口：9999");
+		
 	
 		
 	}
-    
+/**
+     * 一、Spring装配Bean的过程   
+1. 实例化;  
+2. 设置属性值;  
+3. 如果实现了BeanNameAware接口,调用setBeanName设置Bean的ID或者Name;  
+4. 如果实现BeanFactoryAware接口,调用setBeanFactory 设置BeanFactory;  
+5. 如果实现ApplicationContextAware,调用setApplicationContext设置ApplicationContext  
+6. 调用BeanPostProcessor的预先初始化方法;  
+7. 调用InitializingBean的afterPropertiesSet()方法;  
+8. 调用定制init-method方法；  
+9. 调用BeanPostProcessor的后初始化方法;  
+
+
+Spring容器关闭过程   
+1. 调用DisposableBean的destroy();  
+2. 调用定制的destroy-method方法;
+     */
 	public void setApplicationContext(ApplicationContext arg0)
 			throws BeansException {
 		//获取所有带RpcService的bean
@@ -94,13 +111,16 @@ public class RpcServer implements ApplicationContextAware,InitializingBean {
 					            ChannelPipeline pipeline = ch.pipeline();
 					            pipeline.addLast(new RpcDecoder(RpcRequst.class));
 					            pipeline.addLast(new RpcEncoder(RpcResponse.class));
+					            pipeline.addLast(new RpcServerHandler(handlerMap));
 						}
 					});
 			 ChannelFuture channelFuture = bootstrap.bind(9999).sync();
+			 System.out.println("启动服务器成功.......监听端口：9999");
 			 if(registry!=null){
 				 registry.register(registerAddress);// 注册服务地址
 			 }
 			 channelFuture.channel().closeFuture().sync();
+			 System.out.println("服务器关闭");
 		} catch (Exception e) {
 			e.printStackTrace();
 		}finally{
